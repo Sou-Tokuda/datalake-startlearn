@@ -1,12 +1,11 @@
-
-import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as dms from 'aws-cdk-lib/aws-dms';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import { Construct } from 'constructs';
-import { AppConfig } from '../../config/config';
+import * as cdk from "aws-cdk-lib";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as dms from "aws-cdk-lib/aws-dms";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import { Construct } from "constructs";
+import { AppConfig } from "../../config/config";
 
 export interface MigrationProps {
   config: AppConfig;
@@ -32,10 +31,12 @@ export class MigrationConstruct extends Construct {
     super(scope, id);
 
     // DMS用のIAMロールを作成
-    this.dmsRole = new iam.Role(this, 'DMSRole', {
-      assumedBy: new iam.ServicePrincipal('dms.amazonaws.com'),
+    this.dmsRole = new iam.Role(this, "DMSRole", {
+      assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonDMSVPCManagementRole'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AmazonDMSVPCManagementRole",
+        ),
       ],
     });
 
@@ -43,85 +44,94 @@ export class MigrationConstruct extends Construct {
     props.rawDataBucket.grantReadWrite(this.dmsRole);
 
     // DMSレプリケーションサブネットグループの作成
-    const subnetGroup = new dms.CfnReplicationSubnetGroup(this, 'DMSSubnetGroup', {
-      replicationSubnetGroupDescription: 'Subnet group for DMS replication instance',
-      subnetIds: props.vpc.privateSubnets.map(subnet => subnet.subnetId),
-    });
+    const subnetGroup = new dms.CfnReplicationSubnetGroup(
+      this,
+      "DMSSubnetGroup",
+      {
+        replicationSubnetGroupDescription:
+          "Subnet group for DMS replication instance",
+        subnetIds: props.vpc.privateSubnets.map((subnet) => subnet.subnetId),
+      },
+    );
 
     // DMSレプリケーションインスタンスの作成
-    this.dmsReplicationInstance = new dms.CfnReplicationInstance(this, 'DMSReplicationInstance', {
-      replicationInstanceClass: `dms.${props.config.dms.instanceType}`,
-      allocatedStorage: 20,
-      vpcSecurityGroupIds: [props.securityGroup.securityGroupId],
-      replicationSubnetGroupIdentifier: subnetGroup.ref,
-      publiclyAccessible: false,
-      multiAz: false,
-      engineVersion: '3.4.7',
-      autoMinorVersionUpgrade: true,
-    });
+    this.dmsReplicationInstance = new dms.CfnReplicationInstance(
+      this,
+      "DMSReplicationInstance",
+      {
+        replicationInstanceClass: `dms.${props.config.dms.instanceType}`,
+        allocatedStorage: 20,
+        vpcSecurityGroupIds: [props.securityGroup.securityGroupId],
+        replicationSubnetGroupIdentifier: subnetGroup.ref,
+        publiclyAccessible: false,
+        multiAz: false,
+        engineVersion: "3.5.3",
+        autoMinorVersionUpgrade: true,
+      },
+    );
 
     // MSSQL用のエンドポイント作成
-    this.mssqlEndpoint = new dms.CfnEndpoint(this, 'MssqlEndpoint', {
-      endpointType: 'source',
-      engineName: 'sqlserver',
+    this.mssqlEndpoint = new dms.CfnEndpoint(this, "MssqlEndpoint", {
+      endpointType: "source",
+      engineName: "sqlserver",
       serverName: props.mssqlInstance.dbInstanceEndpointAddress,
       port: 1433,
       databaseName: props.config.rds.mssql.databaseName,
-      username: 'admin',
-      passwordSecretArn: props.mssqlSecret.secretArn,
-      sslMode: 'none',
+      username: "admin",
+      password: "password", // TODO: non production mode
+      sslMode: "none",
     });
 
     // Aurora MySQL用のエンドポイント作成
-    this.auroraEndpoint = new dms.CfnEndpoint(this, 'AuroraEndpoint', {
-      endpointType: 'source',
-      engineName: 'mysql',
+    this.auroraEndpoint = new dms.CfnEndpoint(this, "AuroraEndpoint", {
+      endpointType: "source",
+      engineName: "mysql",
       serverName: props.auroraCluster.clusterEndpoint.hostname,
       port: 3306,
       databaseName: props.config.rds.aurora.databaseName,
-      username: 'admin',
-      passwordSecretArn: props.auroraSecret.secretArn,
-      sslMode: 'none',
+      username: "admin",
+      password: "password", //TODO: non production mode
+      sslMode: "none",
     });
 
     // S3ターゲットエンドポイントの作成
-    this.s3Endpoint = new dms.CfnEndpoint(this, 'S3Endpoint', {
-      endpointType: 'target',
-      engineName: 's3',
+    this.s3Endpoint = new dms.CfnEndpoint(this, "S3Endpoint", {
+      endpointType: "target",
+      engineName: "s3",
       s3Settings: {
         bucketName: props.rawDataBucket.bucketName,
         serviceAccessRoleArn: this.dmsRole.roleArn,
-        bucketFolder: 'raw-data',
-        compressionType: 'GZIP',
-        csvDelimiter: ',',
-        csvRowDelimiter: '\\n',
+        bucketFolder: "raw-data",
+        compressionType: "GZIP",
+        csvDelimiter: ",",
+        csvRowDelimiter: "\\n",
         addColumnName: true,
       },
     });
 
     // MSSQL -> S3 レプリケーションタスクの作成
-    this.mssqlToS3Task = new dms.CfnReplicationTask(this, 'MssqlToS3Task', {
-      migrationType: 'full-load-and-cdc',
+    this.mssqlToS3Task = new dms.CfnReplicationTask(this, "MssqlToS3Task", {
+      migrationType: "full-load-and-cdc",
       replicationInstanceArn: this.dmsReplicationInstance.ref,
       sourceEndpointArn: this.mssqlEndpoint.ref,
       targetEndpointArn: this.s3Endpoint.ref,
       tableMappings: JSON.stringify({
         rules: [
           {
-            'rule-type': 'selection',
-            'rule-id': '1',
-            'rule-name': '1',
-            'object-locator': {
-              'schema-name': 'dbo',
-              'table-name': '%',
+            "rule-type": "selection",
+            "rule-id": "1",
+            "rule-name": "1",
+            "object-locator": {
+              "schema-name": "dbo",
+              "table-name": "%",
             },
-            'rule-action': 'include',
+            "rule-action": "include",
           },
         ],
       }),
       replicationTaskSettings: JSON.stringify({
         TargetMetadata: {
-          TargetSchema: '',
+          TargetSchema: "",
           SupportLobs: true,
           FullLobMode: false,
           LobChunkSize: 64,
@@ -131,7 +141,7 @@ export class MigrationConstruct extends Construct {
         FullLoadSettings: {
           FullLoadEnabled: true,
           ApplyChangesEnabled: true,
-          TargetTablePrepMode: 'DO_NOTHING',
+          TargetTablePrepMode: "DO_NOTHING",
           CreatePkAfterFullLoad: false,
           StopTaskCachedChangesApplied: false,
           StopTaskCachedChangesNotApplied: false,
@@ -159,28 +169,28 @@ export class MigrationConstruct extends Construct {
     });
 
     // Aurora -> S3 レプリケーションタスクの作成
-    this.auroraToS3Task = new dms.CfnReplicationTask(this, 'AuroraToS3Task', {
-      migrationType: 'full-load-and-cdc',
+    this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
+      migrationType: "full-load-and-cdc",
       replicationInstanceArn: this.dmsReplicationInstance.ref,
       sourceEndpointArn: this.auroraEndpoint.ref,
       targetEndpointArn: this.s3Endpoint.ref,
       tableMappings: JSON.stringify({
         rules: [
           {
-            'rule-type': 'selection',
-            'rule-id': '1',
-            'rule-name': '1',
-            'object-locator': {
-              'schema-name': props.config.rds.aurora.databaseName,
-              'table-name': '%',
+            "rule-type": "selection",
+            "rule-id": "1",
+            "rule-name": "1",
+            "object-locator": {
+              "schema-name": props.config.rds.aurora.databaseName,
+              "table-name": "%",
             },
-            'rule-action': 'include',
+            "rule-action": "include",
           },
         ],
       }),
       replicationTaskSettings: JSON.stringify({
         TargetMetadata: {
-          TargetSchema: '',
+          TargetSchema: "",
           SupportLobs: true,
           FullLobMode: false,
           LobChunkSize: 64,
@@ -190,7 +200,7 @@ export class MigrationConstruct extends Construct {
         FullLoadSettings: {
           FullLoadEnabled: true,
           ApplyChangesEnabled: true,
-          TargetTablePrepMode: 'DO_NOTHING',
+          TargetTablePrepMode: "DO_NOTHING",
           CreatePkAfterFullLoad: false,
           StopTaskCachedChangesApplied: false,
           StopTaskCachedChangesNotApplied: false,
@@ -218,7 +228,13 @@ export class MigrationConstruct extends Construct {
     });
 
     // タグ付け
-    cdk.Tags.of(this.dmsReplicationInstance).add('Environment', props.config.environment);
-    cdk.Tags.of(this.dmsReplicationInstance).add('Project', props.config.projectName);
+    cdk.Tags.of(this.dmsReplicationInstance).add(
+      "Environment",
+      props.config.environment,
+    );
+    cdk.Tags.of(this.dmsReplicationInstance).add(
+      "Project",
+      props.config.projectName,
+    );
   }
 }

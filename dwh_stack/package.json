@@ -9,7 +9,9 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "cdk:diff": "cdk --profile ispsys diff"
+    "cdk:diff": "cdk --profile ispsys diff",
+    "cdk:deploy": "cdk --profile ispsys deploy",
+    "cdk:destroy": "cdk --profile ispsys destroy"
   },
   "devDependencies": {
     "@types/jest": "^29.5.5",
