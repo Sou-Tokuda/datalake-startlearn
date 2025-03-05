@@ -1,3 +1,4 @@
+{% capture today %}{{ 'today' | date: '%Y-%m-%d' }}{% endcapture %}
 in:
   type: jdbc
   driver_path: /opt/driver/main/jconnect-7.0.jar
@@ -16,7 +17,7 @@ in:
 out: 
   
   type: s3
-  path_prefix: raw/{{ env.TABLE }}/
+  path_prefix: raw/{{ env.TABLE }}/{{ env.END_DATE | default: today }}_
   file_ext: .csv
   bucket: {{ env.OUTBUCKET }}
   endpoint: s3-ap-northeast-1.amazonaws.com

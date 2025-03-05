@@ -2,7 +2,6 @@ services:
   embulk:
     env_file: 
       - ./.env.test
-    
     build: ./
     container_name: embulk_lastet
     volumes:
