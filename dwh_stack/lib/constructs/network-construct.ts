@@ -3,6 +3,7 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import { Construct } from "constructs";
 import { execSync } from "child_process";
 import { AppConfig } from "../../config/config";
+import { CfnOutput } from "aws-cdk-lib";
 
 export interface NetworkProps {
   config: AppConfig;
@@ -54,7 +55,7 @@ export class NetworkConstruct extends Construct {
       vpc: this.vpc,
       description: "Allow access from my global IP only",
       allowAllOutbound: true,
-      securityGroupName: "stkdSecurityGroup"
+      securityGroupName: "stkdSecurityGroup",
     });
 
     // 現在のグローバルIPからのみアクセスを許可
@@ -70,6 +71,49 @@ export class NetworkConstruct extends Construct {
         "Allow all traffic from private subnets",
       ),
     );
+    this.vpc.publicSubnets.map((subnet) =>
+      this.securityGroup.addIngressRule(
+        ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+        ec2.Port.allTraffic(),
+        "Allow all traffic from public subnets",
+      ),
+    );
+
+
+
+
+    // キーペア作成
+    const cfnKeyPair = new ec2.CfnKeyPair(this, 'CfnKeyPair', {
+      keyName: 'stkd-key-pair',
+    })
+    cfnKeyPair.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    // キーペア取得コマンドアウトプット
+    new CfnOutput(this, 'GetSSHKeyCommand', {
+      value: `aws ssm get-parameter --name /ec2/keypair/${cfnKeyPair.getAtt('KeyPairId')} --region ap-northeast-1  --with-decryption --query Parameter.Value --output text`,
+    })
+
+    // EC2作成
+    const instance = new ec2.Instance(this, 'Instance', {
+      vpc:this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PUBLIC
+      },
+      instanceType: ec2.InstanceType.of(
+          ec2.InstanceClass.T3,
+          ec2.InstanceSize.NANO,
+      ),
+      machineImage: new ec2.AmazonLinux2023ImageSsmParameter(),
+      keyName: cdk.Token.asString(cfnKeyPair.ref),
+      securityGroup:this.securityGroup,
+    });
+    new CfnOutput(this, 'SSHCommand', {
+      value: `ssh -lec2-user ${instance.instancePublicDnsName}`,
+    })
+  
+    
+
+
     // タグ付け
     cdk.Tags.of(this.vpc).add("Environment", props.config.environment);
     cdk.Tags.of(this.vpc).add("Project", props.config.projectName);

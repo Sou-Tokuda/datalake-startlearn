@@ -29,17 +29,34 @@ export class MigrationConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: MigrationProps) {
     super(scope, id);
-
     // DMS用のIAMロールを作成
     this.dmsRole = new iam.Role(this, "DMSRole", {
-      assumedBy: new iam.ServicePrincipal("dms.amazonaws.com"),
+      // リージョン固有のDMSサービスプリンシパルを信頼ポリシーに追加
+  assumedBy: new iam.CompositePrincipal(
+    new iam.ServicePrincipal('dms.amazonaws.com'),
+    new iam.ServicePrincipal('dms.ap-northeast-1.amazonaws.com')
+  ),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AmazonDMSVPCManagementRole",
         ),
       ],
     });
-
+    this.dmsRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+        ],
+        resources: [props.mssqlSecret.secretArn, props.auroraSecret.secretArn],
+      }),
+    );
+    this.dmsRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["iam:PassRole"],
+        resources: [this.dmsRole.roleArn],
+      }),
+    );
     // S3バケットへのアクセス権限を付与
     props.rawDataBucket.grantReadWrite(this.dmsRole);
 
@@ -76,11 +93,16 @@ export class MigrationConstruct extends Construct {
       endpointIdentifier: "stkdMssqlEndpoint",
       endpointType: "source",
       engineName: "sqlserver",
-      serverName: props.mssqlInstance.dbInstanceEndpointAddress,
-      port: 1433,
+      // serverName: props.mssqlInstance.dbInstanceEndpointAddress,
+      // port: 1433,
       databaseName: props.config.rds.mssql.databaseName,
-      username: "admin",
-      password: "password", // TODO: non production mode
+      // username: "admin",
+      // password: "password", // TODO: non production mode
+      microsoftSqlServerSettings: {
+        secretsManagerSecretId: props.mssqlSecret.secretArn,
+        secretsManagerAccessRoleArn: this.dmsRole.roleArn,
+      },
+      
       sslMode: "none",
     });
 
@@ -88,12 +110,17 @@ export class MigrationConstruct extends Construct {
     this.auroraEndpoint = new dms.CfnEndpoint(this, "AuroraEndpoint", {
       endpointIdentifier: "stkdAuroraEndpoint",
       endpointType: "source",
-      engineName: "mysql",
-      serverName: props.auroraCluster.clusterEndpoint.hostname,
-      port: 3306,
+      engineName: "aurora",
+      // serverName: props.auroraCluster.clusterEndpoint.hostname,
+      // port: 3306,
+      mySqlSettings:{
+        secretsManagerSecretId: props.auroraSecret.secretArn,
+        secretsManagerAccessRoleArn: this.dmsRole.roleArn,
+
+      },
       databaseName: props.config.rds.aurora.databaseName,
-      username: "admin",
-      password: "password", //TODO: non production mode
+      // username: "admin",
+      // password: "password", //TODO: non production mode
       sslMode: "none",
     });
 
@@ -102,13 +129,17 @@ export class MigrationConstruct extends Construct {
       endpointIdentifier: "stkdS3Endpoint",
       endpointType: "target",
       engineName: "s3",
+
       s3Settings: {
         bucketName: props.rawDataBucket.bucketName,
         serviceAccessRoleArn: this.dmsRole.roleArn,
         bucketFolder: "raw-data",
+        parquetTimestampInMillisecond: true,
+        dataFormat: "parquet",
+        parquetVersion: "parquet_2_0",
         compressionType: "GZIP",
-        csvDelimiter: ",",
-        csvRowDelimiter: "\\n",
+        // csvDelimiter: ",",
+        // csvRowDelimiter: "\\n",
         addColumnName: true,
       },
     });
