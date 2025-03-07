@@ -59,6 +59,7 @@ export class MigrationConstruct extends Construct {
       this,
       "DMSReplicationInstance",
       {
+        resourceIdentifier: "stkdDMSReplicationInstance",
         replicationInstanceClass: `dms.${props.config.dms.instanceType}`,
         allocatedStorage: 20,
         vpcSecurityGroupIds: [props.securityGroup.securityGroupId],
@@ -72,6 +73,7 @@ export class MigrationConstruct extends Construct {
 
     // MSSQL用のエンドポイント作成
     this.mssqlEndpoint = new dms.CfnEndpoint(this, "MssqlEndpoint", {
+      endpointIdentifier: "stkdMssqlEndpoint",
       endpointType: "source",
       engineName: "sqlserver",
       serverName: props.mssqlInstance.dbInstanceEndpointAddress,
@@ -84,6 +86,7 @@ export class MigrationConstruct extends Construct {
 
     // Aurora MySQL用のエンドポイント作成
     this.auroraEndpoint = new dms.CfnEndpoint(this, "AuroraEndpoint", {
+      endpointIdentifier: "stkdAuroraEndpoint",
       endpointType: "source",
       engineName: "mysql",
       serverName: props.auroraCluster.clusterEndpoint.hostname,
@@ -96,6 +99,7 @@ export class MigrationConstruct extends Construct {
 
     // S3ターゲットエンドポイントの作成
     this.s3Endpoint = new dms.CfnEndpoint(this, "S3Endpoint", {
+      endpointIdentifier: "stkdS3Endpoint",
       endpointType: "target",
       engineName: "s3",
       s3Settings: {
@@ -111,6 +115,7 @@ export class MigrationConstruct extends Construct {
 
     // MSSQL -> S3 レプリケーションタスクの作成
     this.mssqlToS3Task = new dms.CfnReplicationTask(this, "MssqlToS3Task", {
+      resourceIdentifier: "stkdMssqlToS3Task",
       migrationType: "full-load-and-cdc",
       replicationInstanceArn: this.dmsReplicationInstance.ref,
       sourceEndpointArn: this.mssqlEndpoint.ref,
@@ -170,6 +175,7 @@ export class MigrationConstruct extends Construct {
 
     // Aurora -> S3 レプリケーションタスクの作成
     this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
+      resourceIdentifier: "stkdAuroraToS3Task",
       migrationType: "full-load-and-cdc",
       replicationInstanceArn: this.dmsReplicationInstance.ref,
       sourceEndpointArn: this.auroraEndpoint.ref,

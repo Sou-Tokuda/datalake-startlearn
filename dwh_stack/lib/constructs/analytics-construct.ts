@@ -52,11 +52,6 @@ export class AnalyticsConstruct extends Construct {
       },
     });
 
-
-
-
-
-
     // 生データ用Glue Crawlerの作成
     this.glueCrawler = new glue.CfnCrawler(this, "RawDataCrawler", {
       name: `${props.config.projectName}-${props.config.environment}-raw-data-crawler`,

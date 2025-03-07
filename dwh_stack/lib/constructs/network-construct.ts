@@ -54,6 +54,7 @@ export class NetworkConstruct extends Construct {
       vpc: this.vpc,
       description: "Allow access from my global IP only",
       allowAllOutbound: true,
+      securityGroupName: "stkdSecurityGroup"
     });
 
     // 現在のグローバルIPからのみアクセスを許可
@@ -62,7 +63,13 @@ export class NetworkConstruct extends Construct {
       ec2.Port.allTraffic(),
       "Allow all traffic from my global IP",
     );
-
+    this.vpc.privateSubnets.map((subnet) =>
+      this.securityGroup.addIngressRule(
+        ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+        ec2.Port.allTraffic(),
+        "Allow all traffic from private subnets",
+      ),
+    );
     // タグ付け
     cdk.Tags.of(this.vpc).add("Environment", props.config.environment);
     cdk.Tags.of(this.vpc).add("Project", props.config.projectName);

@@ -44,7 +44,7 @@ export class MyStack extends cdk.Stack {
     });
 
     // 分析基盤リソースの作成
-    const analytics = new AnalyticsConstruct(this, 'Analytics', {
+    const analytics = new AnalyticsConstruct(this, "Analytics", {
       config: config,
       rawDataBucket: storage.rawDataBucket,
       processedDataBucket: storage.processedDataBucket,
@@ -53,9 +53,9 @@ export class MyStack extends cdk.Stack {
     });
 
     // 出力値の定義
-    new cdk.CfnOutput(this, 'VpcId', {
+    new cdk.CfnOutput(this, "VpcId", {
       value: network.vpc.vpcId,
-      description: 'VPC ID',
+      description: "VPC ID",
     });
 
     // new cdk.CfnOutput(this, 'MssqlEndpoint', {
