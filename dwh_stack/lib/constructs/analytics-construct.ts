@@ -42,6 +42,7 @@ export class AnalyticsConstruct extends Construct {
     props.processedDataBucket.grantReadWrite(this.glueRole);
     props.s3TablesBucket.grantReadWrite(this.glueRole);
     props.scriptsBucket.grantRead(this.glueRole);
+    
 
     // Glueデータベースの作成
     this.glueDatabase = new glue.CfnDatabase(this, "GlueDatabase", {

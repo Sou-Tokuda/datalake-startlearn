@@ -52,6 +52,7 @@ export class DatabaseConstruct extends Construct {
       ),
       deletionProtection: false,
       multiAz: false,
+
       credentials: rds.Credentials.fromSecret(this.mssqlSecret),
       // databaseName: props.config.rds.mssql.databaseName,
       port: 1433,

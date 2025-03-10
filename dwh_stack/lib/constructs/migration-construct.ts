@@ -32,10 +32,10 @@ export class MigrationConstruct extends Construct {
     // DMS用のIAMロールを作成
     this.dmsRole = new iam.Role(this, "DMSRole", {
       // リージョン固有のDMSサービスプリンシパルを信頼ポリシーに追加
-  assumedBy: new iam.CompositePrincipal(
-    new iam.ServicePrincipal('dms.amazonaws.com'),
-    new iam.ServicePrincipal('dms.ap-northeast-1.amazonaws.com')
-  ),
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("dms.amazonaws.com"),
+        new iam.ServicePrincipal("dms.ap-northeast-1.amazonaws.com"),
+      ),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AmazonDMSVPCManagementRole",
@@ -59,6 +59,31 @@ export class MigrationConstruct extends Construct {
     );
     // S3バケットへのアクセス権限を付与
     props.rawDataBucket.grantReadWrite(this.dmsRole);
+
+    const s3Bucket = new cdk.aws_s3.Bucket(
+      this,
+      "DmsS3PremigrationAssessmentBucket",
+      {
+        bucketName: "test-dms-s3-premigration-assessment-bucket",
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
+      },
+    );
+    const premigrationAssessmentPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:PutObjectTagging",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+      ],
+      resources: [s3Bucket.bucketArn, `${s3Bucket.bucketArn}/*`],
+    });
+    s3Bucket.grantReadWrite(this.dmsRole);
+    this.dmsRole.addToPolicy(premigrationAssessmentPolicy);
 
     // DMSレプリケーションサブネットグループの作成
     const subnetGroup = new dms.CfnReplicationSubnetGroup(
@@ -88,24 +113,25 @@ export class MigrationConstruct extends Construct {
       },
     );
 
-    // MSSQL用のエンドポイント作成
-    this.mssqlEndpoint = new dms.CfnEndpoint(this, "MssqlEndpoint", {
-      endpointIdentifier: "stkdMssqlEndpoint",
-      endpointType: "source",
-      engineName: "sqlserver",
-      // serverName: props.mssqlInstance.dbInstanceEndpointAddress,
-      // port: 1433,
-      databaseName: props.config.rds.mssql.databaseName,
-      // username: "admin",
-      // password: "password", // TODO: non production mode
-      microsoftSqlServerSettings: {
-        secretsManagerSecretId: props.mssqlSecret.secretArn,
-        secretsManagerAccessRoleArn: this.dmsRole.roleArn,
-      },
-      
-      sslMode: "none",
-    });
+    if (false) {
+      // MSSQL用のエンドポイント作成
+      this.mssqlEndpoint = new dms.CfnEndpoint(this, "MssqlEndpoint", {
+        endpointIdentifier: "stkdMssqlEndpoint",
+        endpointType: "source",
+        engineName: "sqlserver",
+        // serverName: props.mssqlInstance.dbInstanceEndpointAddress,
+        // port: 1433,
+        databaseName: props.config.rds.mssql.databaseName,
+        // username: "admin",
+        // password: "password", // TODO: non production mode
+        microsoftSqlServerSettings: {
+          secretsManagerSecretId: props.mssqlSecret.secretArn,
+          secretsManagerAccessRoleArn: this.dmsRole.roleArn,
+        },
 
+        sslMode: "none",
+      });
+    }
     // Aurora MySQL用のエンドポイント作成
     this.auroraEndpoint = new dms.CfnEndpoint(this, "AuroraEndpoint", {
       endpointIdentifier: "stkdAuroraEndpoint",
@@ -113,10 +139,9 @@ export class MigrationConstruct extends Construct {
       engineName: "aurora",
       // serverName: props.auroraCluster.clusterEndpoint.hostname,
       // port: 3306,
-      mySqlSettings:{
+      mySqlSettings: {
         secretsManagerSecretId: props.auroraSecret.secretArn,
         secretsManagerAccessRoleArn: this.dmsRole.roleArn,
-
       },
       databaseName: props.config.rds.aurora.databaseName,
       // username: "admin",
@@ -144,66 +169,67 @@ export class MigrationConstruct extends Construct {
       },
     });
 
-    // MSSQL -> S3 レプリケーションタスクの作成
-    this.mssqlToS3Task = new dms.CfnReplicationTask(this, "MssqlToS3Task", {
-      resourceIdentifier: "stkdMssqlToS3Task",
-      migrationType: "full-load-and-cdc",
-      replicationInstanceArn: this.dmsReplicationInstance.ref,
-      sourceEndpointArn: this.mssqlEndpoint.ref,
-      targetEndpointArn: this.s3Endpoint.ref,
-      tableMappings: JSON.stringify({
-        rules: [
-          {
-            "rule-type": "selection",
-            "rule-id": "1",
-            "rule-name": "1",
-            "object-locator": {
-              "schema-name": "dbo",
-              "table-name": "%",
+    if (false) {
+      // MSSQL -> S3 レプリケーションタスクの作成
+      this.mssqlToS3Task = new dms.CfnReplicationTask(this, "MssqlToS3Task", {
+        resourceIdentifier: "stkdMssqlToS3Task",
+        migrationType: "full-load-and-cdc",
+        replicationInstanceArn: this.dmsReplicationInstance.ref,
+        sourceEndpointArn: this.mssqlEndpoint.ref,
+        targetEndpointArn: this.s3Endpoint.ref,
+        tableMappings: JSON.stringify({
+          rules: [
+            {
+              "rule-type": "selection",
+              "rule-id": "1",
+              "rule-name": "1",
+              "object-locator": {
+                "schema-name": "dbo",
+                "table-name": "%",
+              },
+              "rule-action": "include",
             },
-            "rule-action": "include",
+          ],
+        }),
+        replicationTaskSettings: JSON.stringify({
+          TargetMetadata: {
+            TargetSchema: "",
+            SupportLobs: true,
+            FullLobMode: false,
+            LobChunkSize: 64,
+            LimitedSizeLobMode: true,
+            LobMaxSize: 32,
           },
-        ],
-      }),
-      replicationTaskSettings: JSON.stringify({
-        TargetMetadata: {
-          TargetSchema: "",
-          SupportLobs: true,
-          FullLobMode: false,
-          LobChunkSize: 64,
-          LimitedSizeLobMode: true,
-          LobMaxSize: 32,
-        },
-        FullLoadSettings: {
-          FullLoadEnabled: true,
-          ApplyChangesEnabled: true,
-          TargetTablePrepMode: "DO_NOTHING",
-          CreatePkAfterFullLoad: false,
-          StopTaskCachedChangesApplied: false,
-          StopTaskCachedChangesNotApplied: false,
-          MaxFullLoadSubTasks: 8,
-          TransactionConsistencyTimeout: 600,
-          CommitRate: 10000,
-        },
-        Logging: {
-          EnableLogging: true,
-        },
-        ChangeProcessingTuning: {
-          BatchApplyEnabled: true,
-          BatchApplyPreserveTransaction: true,
-          BatchApplyTimeoutMin: 1,
-          BatchApplyTimeoutMax: 30,
-          BatchApplyMemoryLimit: 500,
-          BatchSplitSize: 0,
-          MinTransactionSize: 1000,
-          CommitTimeout: 1,
-          MemoryLimitTotal: 1024,
-          MemoryKeepTime: 60,
-          StatementCacheSize: 50,
-        },
-      }),
-    });
-
+          FullLoadSettings: {
+            FullLoadEnabled: true,
+            ApplyChangesEnabled: true,
+            TargetTablePrepMode: "DO_NOTHING",
+            CreatePkAfterFullLoad: false,
+            StopTaskCachedChangesApplied: false,
+            StopTaskCachedChangesNotApplied: false,
+            MaxFullLoadSubTasks: 8,
+            TransactionConsistencyTimeout: 600,
+            CommitRate: 10000,
+          },
+          Logging: {
+            EnableLogging: true,
+          },
+          ChangeProcessingTuning: {
+            BatchApplyEnabled: true,
+            BatchApplyPreserveTransaction: true,
+            BatchApplyTimeoutMin: 1,
+            BatchApplyTimeoutMax: 30,
+            BatchApplyMemoryLimit: 500,
+            BatchSplitSize: 0,
+            MinTransactionSize: 1000,
+            CommitTimeout: 1,
+            MemoryLimitTotal: 1024,
+            MemoryKeepTime: 60,
+            StatementCacheSize: 50,
+          },
+        }),
+      });
+    }
     // Aurora -> S3 レプリケーションタスクの作成
     this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
       resourceIdentifier: "stkdAuroraToS3Task",
@@ -234,19 +260,49 @@ export class MigrationConstruct extends Construct {
           LimitedSizeLobMode: true,
           LobMaxSize: 32,
         },
+        // FullLoadSettings: {
+        //   FullLoadEnabled: true,
+        //   ApplyChangesEnabled: true,
+        //   TargetTablePrepMode: "DO_NOTHING",
+        //   CreatePkAfterFullLoad: false,
+        //   StopTaskCachedChangesApplied: false,
+        //   StopTaskCachedChangesNotApplied: false,
+        //   MaxFullLoadSubTasks: 8,
+        //   TransactionConsistencyTimeout: 600,
+        //   CommitRate: 10000,
+        // },
         FullLoadSettings: {
-          FullLoadEnabled: true,
-          ApplyChangesEnabled: true,
-          TargetTablePrepMode: "DO_NOTHING",
           CreatePkAfterFullLoad: false,
           StopTaskCachedChangesApplied: false,
           StopTaskCachedChangesNotApplied: false,
           MaxFullLoadSubTasks: 8,
-          TransactionConsistencyTimeout: 600,
+          TransactionConsistencyTimeout: 900,
           CommitRate: 10000,
         },
         Logging: {
           EnableLogging: true,
+          LogComponents: [
+            {
+              Id: "SOURCE_UNLOAD",
+              Severity: "LOGGER_SEVERITY_DEFAULT",
+            },
+            {
+              Id: "SOURCE_CAPTURE",
+              Severity: "LOGGER_SEVERITY_DEFAULT",
+            },
+            {
+              Id: "TARGET_LOAD",
+              Severity: "LOGGER_SEVERITY_DEFAULT",
+            },
+            {
+              Id: "TARGET_APPLY",
+              Severity: "LOGGER_SEVERITY_DEFAULT",
+            },
+            {
+              Id: "TASK_MANAGER",
+              Severity: "LOGGER_SEVERITY_DEFAULT",
+            },
+          ],
         },
         ChangeProcessingTuning: {
           BatchApplyEnabled: true,

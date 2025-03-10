@@ -73,7 +73,10 @@ export class StorageConstruct extends Construct {
       bucketName: `${props.config.projectName.toLowerCase()}-${props.config.environment}-scripts-${this.node.addr.substring(0, 8)}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.RETAIN, // スクリプトは重要なので保持
+      removalPolicy:
+        props.config.environment === "prod"
+          ? cdk.RemovalPolicy.RETAIN
+          : cdk.RemovalPolicy.DESTROY,
     });
 
     // SQLスクリプトをデプロイ

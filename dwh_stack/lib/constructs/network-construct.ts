@@ -58,61 +58,60 @@ export class NetworkConstruct extends Construct {
       securityGroupName: "stkdSecurityGroup",
     });
 
-    // 現在のグローバルIPからのみアクセスを許可
-    this.securityGroup.addIngressRule(
-      ec2.Peer.ipv4(myIp),
-      ec2.Port.allTraffic(),
-      "Allow all traffic from my global IP",
-    );
-    this.vpc.privateSubnets.map((subnet) =>
+    const array = [ec2.Port.tcp(22), ec2.Port.tcp(3306), ec2.Port.tcp(1433)];
+    for (let index = 0; index < array.length; index++) {
+      const port = array[index];
+
+      // 現在のグローバルIPからのみアクセスを許可
       this.securityGroup.addIngressRule(
-        ec2.Peer.ipv4(subnet.ipv4CidrBlock),
-        ec2.Port.allTraffic(),
-        "Allow all traffic from private subnets",
-      ),
-    );
-    this.vpc.publicSubnets.map((subnet) =>
-      this.securityGroup.addIngressRule(
-        ec2.Peer.ipv4(subnet.ipv4CidrBlock),
-        ec2.Port.allTraffic(),
-        "Allow all traffic from public subnets",
-      ),
-    );
-
-
-
+        ec2.Peer.ipv4(myIp),
+        port,
+        "Allow all traffic from my global IP",
+      );
+      this.vpc.privateSubnets.map((subnet) =>
+        this.securityGroup.addIngressRule(
+          ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+          port,
+          "Allow all traffic from private subnets",
+        ),
+      );
+      this.vpc.publicSubnets.map((subnet) =>
+        this.securityGroup.addIngressRule(
+          ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+          port,
+          "Allow all traffic from public subnets",
+        ),
+      );
+    }
 
     // キーペア作成
-    const cfnKeyPair = new ec2.CfnKeyPair(this, 'CfnKeyPair', {
-      keyName: 'stkd-key-pair',
-    })
-    cfnKeyPair.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+    const cfnKeyPair = new ec2.CfnKeyPair(this, "CfnKeyPair", {
+      keyName: "stkd-key-pair",
+    });
+    cfnKeyPair.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
 
     // キーペア取得コマンドアウトプット
-    new CfnOutput(this, 'GetSSHKeyCommand', {
-      value: `aws ssm get-parameter --name /ec2/keypair/${cfnKeyPair.getAtt('KeyPairId')} --region ap-northeast-1  --with-decryption --query Parameter.Value --output text`,
-    })
+    new CfnOutput(this, "GetSSHKeyCommand", {
+      value: `aws ssm get-parameter --name /ec2/keypair/${cfnKeyPair.getAtt("KeyPairId")} --region ap-northeast-1  --with-decryption --query Parameter.Value --output text`,
+    });
 
     // EC2作成
-    const instance = new ec2.Instance(this, 'Instance', {
-      vpc:this.vpc,
+    const instance = new ec2.Instance(this, "Instance", {
+      vpc: this.vpc,
       vpcSubnets: {
-        subnetType: ec2.SubnetType.PUBLIC
+        subnetType: ec2.SubnetType.PUBLIC,
       },
       instanceType: ec2.InstanceType.of(
-          ec2.InstanceClass.T3,
-          ec2.InstanceSize.NANO,
+        ec2.InstanceClass.T3,
+        ec2.InstanceSize.NANO,
       ),
       machineImage: new ec2.AmazonLinux2023ImageSsmParameter(),
       keyName: cdk.Token.asString(cfnKeyPair.ref),
-      securityGroup:this.securityGroup,
+      securityGroup: this.securityGroup,
     });
-    new CfnOutput(this, 'SSHCommand', {
+    new CfnOutput(this, "SSHCommand", {
       value: `ssh -lec2-user ${instance.instancePublicDnsName}`,
-    })
-  
-    
-
+    });
 
     // タグ付け
     cdk.Tags.of(this.vpc).add("Environment", props.config.environment);
