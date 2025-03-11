@@ -10,6 +10,9 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import *
 from datetime import datetime
 
+import boto3
+glue_client = boto3.client('glue')
+
 # パラメータの取得
 args = getResolvedOptions(sys.argv, [
     'JOB_NAME', 
@@ -33,12 +36,9 @@ day = current_date.strftime("%d")
 
 # データカタログからテーブル一覧を取得
 database = args['SOURCE_DATABASE']
-tables = glueContext.create_dynamic_frame.from_catalog(
-    database=database,
-    table_name="").toDF()
-
-# テーブル名のリストを取得
-table_names = [table['tableName'] for table in tables.select('tableName').collect()]
+# データベース内のテーブル一覧を取得
+response = glue_client.get_tables(DatabaseName=database)
+table_names = [table['Name'] for table in response['TableList']]
 print(f"Processing tables: {table_names}")
 
 # 各テーブルを処理

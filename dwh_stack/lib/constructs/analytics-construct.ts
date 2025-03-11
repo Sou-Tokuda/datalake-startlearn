@@ -67,7 +67,7 @@ export class AnalyticsConstruct extends Construct {
         ],
       },
       schedule: {
-        scheduleExpression: "cron(0 */6 * * ? *)", // 6時間ごとに実行
+        scheduleExpression: "cron(0 0/6 * * ? *)", // 6時間ごとに実行
       },
       configuration: JSON.stringify({
         Version: 1.0,

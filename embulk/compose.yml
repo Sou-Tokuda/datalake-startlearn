@@ -8,10 +8,4 @@ services:
       - ./conf:/root/conf:ro
       - ./driver:/opt/driver/:ro
     tty: true
-    command: bash -lxc ". ~/.bashrc && embulk preview /root/conf/emb.yaml.liquid"
     network_mode: host
-
-
-
-# networks:
-#   hod
