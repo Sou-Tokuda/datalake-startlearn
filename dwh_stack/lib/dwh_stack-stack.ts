@@ -6,6 +6,8 @@ import { StorageConstruct } from "./constructs/storage-construct";
 import { MigrationConstruct } from "./constructs/migration-construct";
 import { AnalyticsConstruct } from "./constructs/analytics-construct";
 import { getConfig } from "../config/config";
+import { RedshiftSpectrumConstruct } from "./constructs/redshiftspectrum-construct";
+import { RedshiftServerlessConstruct } from "./constructs/redshiftserverless-construct";
 
 export class MyStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -51,6 +53,17 @@ export class MyStack extends cdk.Stack {
       s3TablesBucket: storage.s3TablesBucket,
       scriptsBucket: storage.scriptsBucket,
     });
+
+
+
+
+// Redshift Serverlessの作成
+const redshiftServerless = new RedshiftServerlessConstruct(this, "RedshiftServerless", {
+  config: config,
+  vpc: network.vpc,
+  databaseName: "stkd-redshift-analytics", // データベース名
+  baseCapacity: 8, // RPU（Redshift Processing Units）
+});
 
     // 出力値の定義
     new cdk.CfnOutput(this, "VpcId", {
