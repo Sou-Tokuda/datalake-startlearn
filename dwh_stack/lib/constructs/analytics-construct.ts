@@ -5,6 +5,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as athena from "aws-cdk-lib/aws-athena";
 import { Construct } from "constructs";
 import { AppConfig } from "../../config/config";
 
@@ -42,7 +43,6 @@ export class AnalyticsConstruct extends Construct {
     props.processedDataBucket.grantReadWrite(this.glueRole);
     props.s3TablesBucket.grantReadWrite(this.glueRole);
     props.scriptsBucket.grantRead(this.glueRole);
-    
 
     // Glueデータベースの作成
     this.glueDatabase = new glue.CfnDatabase(this, "GlueDatabase", {
@@ -58,6 +58,7 @@ export class AnalyticsConstruct extends Construct {
       name: `${props.config.projectName}-${props.config.environment}-raw-data-crawler`,
       role: this.glueRole.roleArn,
       databaseName: this.glueDatabase.ref,
+      tablePrefix: "raw_",
       targets: {
         s3Targets: [
           {
@@ -207,8 +208,51 @@ export class AnalyticsConstruct extends Construct {
     etlCompleteTrigger.addDependency(this.createTablesJob);
     etlCompleteTrigger.addDependency(this.extractTransformJob);
 
-    // タグ付け
-    cdk.Tags.of(this.glueRole).add("Environment", props.config.environment);
-    cdk.Tags.of(this.glueRole).add("Project", props.config.projectName);
+    // Athena
+
+    // this.glueRole.addManagedPolicy(
+    //   iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonAthenaFullAccess"),
+    // );
+
+    // // Athena用の結果出力バケットを作成
+    // const athenaResultsBucket = new s3.Bucket(this, "AthenaResultsBucket", {
+    //   bucketName: `${props.config.projectName.toLowerCase()}-${props.config.environment}-athena-results-${this.node.addr.substring(0, 8)}`,
+    //   encryption: s3.BucketEncryption.S3_MANAGED,
+    //   blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    //   removalPolicy:
+    //     props.config.environment === "prod"
+    //       ? cdk.RemovalPolicy.RETAIN
+    //       : cdk.RemovalPolicy.DESTROY,
+    //   autoDeleteObjects: props.config.environment !== "prod",
+    // });
+
+    // // Athena結果バケットへのアクセス権限を付与
+    // athenaResultsBucket.grantReadWrite(this.glueRole);
+
+    // // Athenaワークグループの作成
+    // const athenaWorkgroup = new athena.CfnWorkGroup(this, "AthenaWorkgroup", {
+    //   name: `stkd-${props.config.projectName}-${props.config.environment}-workgroup`,
+    //   description: "Workgroup for querying data in S3",
+    //   state: "ENABLED",
+    //   workGroupConfiguration: {
+    //     resultConfiguration: {
+    //       outputLocation: `s3://${athenaResultsBucket.bucketName}/`,
+    //       encryptionConfiguration: {
+    //         encryptionOption: "SSE_S3",
+    //       },
+    //     },
+    //     publishCloudWatchMetricsEnabled: true,
+    //     enforceWorkGroupConfiguration: true,
+    //     engineVersion: {
+    //       selectedEngineVersion: "Athena engine version 3",
+    //     },
+    //   },
+    // });
+
+    // // 出力値として追加
+    // new cdk.CfnOutput(this, "AthenaWorkgroupName", {
+    //   value: athenaWorkgroup.name!,
+    //   description: "Athena Workgroup Name",
+    // });
   }
 }

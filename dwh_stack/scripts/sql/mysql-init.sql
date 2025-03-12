@@ -1,4 +1,7 @@
 
+ call mysql.rds_set_configuration('binlog retention hours', 24);
+                    
+                
 USE auroradb;
 
 -- 従業員テーブルの作成

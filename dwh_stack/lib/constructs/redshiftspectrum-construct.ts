@@ -57,17 +57,20 @@ export class RedshiftSpectrumConstruct extends Construct {
           "glue:UpdatePartition",
           "glue:GetPartition",
           "glue:GetPartitions",
-          "glue:BatchGetPartition"
+          "glue:BatchGetPartition",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     // Redshiftに外部スキーマを作成するためのカスタムリソース
-    const createExternalSchemaLambda = new lambda.Function(this, "CreateExternalSchemaFunction", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
-      code: lambda.Code.fromInline(`
+    const createExternalSchemaLambda = new lambda.Function(
+      this,
+      "CreateExternalSchemaFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: "index.handler",
+        code: lambda.Code.fromInline(`
         const AWS = require('aws-sdk');
         const { SecretsManager } = require('aws-sdk');
         const { RedshiftData } = require('aws-sdk');
@@ -139,23 +142,23 @@ export class RedshiftSpectrumConstruct extends Construct {
           return { responseBody };
         }
       `),
-      timeout: cdk.Duration.minutes(5),
-      environment: {
-        REGION: cdk.Aws.REGION,
+        timeout: cdk.Duration.minutes(5),
+        environment: {
+          REGION: cdk.Aws.REGION,
+        },
       },
-    });
+    );
 
     // Lambda関数に必要な権限を付与
     createExternalSchemaLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
-          
           "secretsmanager:GetSecretValue",
           "redshift-data:ExecuteStatement",
           "redshift:DescribeClusters",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     // カスタムリソースプロバイダーを作成
@@ -164,16 +167,20 @@ export class RedshiftSpectrumConstruct extends Construct {
     });
 
     // カスタムリソースを作成して外部スキーマを設定
-    const externalSchema = new cdk.CustomResource(this, "RedshiftExternalSchema", {
-      serviceToken: provider.serviceToken,
-      properties: {
-        clusterIdentifier: props.redshiftCluster.clusterName,
-        secretArn: props.redshiftSecret.secretArn,
-        databaseName: props.redshiftDatabaseName || "dev",
-        glueDatabaseName: props.glueDatabaseName,
-        spectrumRoleArn: this.spectrumRole.roleArn,
+    const externalSchema = new cdk.CustomResource(
+      this,
+      "RedshiftExternalSchema",
+      {
+        serviceToken: provider.serviceToken,
+        properties: {
+          clusterIdentifier: props.redshiftCluster.clusterName,
+          secretArn: props.redshiftSecret.secretArn,
+          databaseName: props.redshiftDatabaseName || "dev",
+          glueDatabaseName: props.glueDatabaseName,
+          spectrumRoleArn: this.spectrumRole.roleArn,
+        },
       },
-    });
+    );
 
     // タグ付け
     cdk.Tags.of(this.spectrumRole).add("Environment", props.config.environment);

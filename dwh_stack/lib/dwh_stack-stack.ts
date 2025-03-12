@@ -38,7 +38,7 @@ export class MyStack extends cdk.Stack {
       config: config,
       vpc: network.vpc,
       securityGroup: network.securityGroup,
-      mssqlInstance: database.mssqlInstance,
+      
       auroraCluster: database.auroraCluster,
       mssqlSecret: database.mssqlSecret,
       auroraSecret: database.auroraSecret,
@@ -54,16 +54,17 @@ export class MyStack extends cdk.Stack {
       scriptsBucket: storage.scriptsBucket,
     });
 
-
-
-
-// Redshift Serverlessの作成
-const redshiftServerless = new RedshiftServerlessConstruct(this, "RedshiftServerless", {
-  config: config,
-  vpc: network.vpc,
-  databaseName: "stkd-redshift-analytics", // データベース名
-  baseCapacity: 8, // RPU（Redshift Processing Units）
-});
+    // Redshift Serverlessの作成
+    // const redshiftServerless = new RedshiftServerlessConstruct(
+    //   this,
+    //   "RedshiftServerless",
+    //   {
+    //     config: config,
+    //     vpc: network.vpc,
+    //     databaseName: "stkd-redshift-analytics", // データベース名
+    //     baseCapacity: 8, // RPU（Redshift Processing Units）
+    //   },
+    // );
 
     // 出力値の定義
     new cdk.CfnOutput(this, "VpcId", {

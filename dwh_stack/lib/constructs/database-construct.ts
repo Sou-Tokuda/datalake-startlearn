@@ -20,44 +20,6 @@ export class DatabaseConstruct extends Construct {
   constructor(scope: Construct, id: string, props: DatabaseProps) {
     super(scope, id);
 
-    // MSSQL用のシークレット作成
-    this.mssqlSecret = new secretsmanager.Secret(this, "MssqlSecret", {
-      secretName: `${props.config.projectName}-${props.config.environment}-mssql-credentials`,
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "admin" }),
-        generateStringKey: "password",
-        excludePunctuation: true,
-        passwordLength: 16,
-      },
-    });
-
-    // MSSQL RDSインスタンスの作成
-    this.mssqlInstance = new rds.DatabaseInstance(this, "MssqlInstance", {
-      engine: rds.DatabaseInstanceEngine.sqlServerEx({
-        version: rds.SqlServerEngineVersion.VER_15,
-      }),
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T3,
-        ec2.InstanceSize.MICRO,
-      ),
-      vpc: props.vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_WITH_NAT,
-      },
-      securityGroups: [props.securityGroup],
-      allocatedStorage: props.config.rds.mssql.allocatedStorage,
-      storageType: rds.StorageType.GP2,
-      backupRetention: cdk.Duration.days(
-        props.config.rds.mssql.backupRetention,
-      ),
-      deletionProtection: false,
-      multiAz: false,
-
-      credentials: rds.Credentials.fromSecret(this.mssqlSecret),
-      // databaseName: props.config.rds.mssql.databaseName,
-      port: 1433,
-    });
-
     // Aurora MySQL用のシークレット作成
     this.auroraSecret = new secretsmanager.Secret(this, "AuroraSecret", {
       secretName: `${props.config.projectName}-${props.config.environment}-aurora-credentials`,
@@ -68,6 +30,36 @@ export class DatabaseConstruct extends Construct {
         passwordLength: 16,
       },
     });
+
+    const auroraClusterParameterGroup = new rds.ParameterGroup(
+      this,
+      "AuroraClusterParameterGroup",
+      {
+        engine: rds.DatabaseClusterEngine.auroraMysql({
+          version: rds.AuroraMysqlEngineVersion.VER_3_04_0,
+        }),
+        description: `${props.config.projectName}-${props.config.environment} Aurora MySQL cluster parameter group with binary logging enabled`,
+        parameters: {
+          binlog_format: "ROW",
+          // expire_logs_days: "2",
+          binlog_row_image: "Full",
+        },
+      },
+    );
+
+    // Aurora MySQLのDBインスタンスパラメータグループを作成（必要に応じて）
+    const auroraInstanceParameterGroup = new rds.ParameterGroup(
+      this,
+      "AuroraInstanceParameterGroup",
+      {
+        engine: rds.DatabaseClusterEngine.auroraMysql({
+          version: rds.AuroraMysqlEngineVersion.VER_3_04_0,
+        }),
+        description: `${props.config.projectName}-${props.config.environment} Aurora MySQL instance parameter group`,
+        // インスタンスレベルのパラメータが必要な場合はここに追加
+
+      },
+    );
 
     // Aurora MySQLクラスターの作成
     this.auroraCluster = new rds.DatabaseCluster(this, "AuroraCluster", {
@@ -84,6 +76,7 @@ export class DatabaseConstruct extends Construct {
           subnetType: ec2.SubnetType.PRIVATE_WITH_NAT,
         },
         securityGroups: [props.securityGroup],
+        parameterGroup: auroraInstanceParameterGroup, // インスタンスパラメータグループを適用
       },
       instances: props.config.rds.aurora.instances,
       credentials: rds.Credentials.fromSecret(this.auroraSecret),
@@ -93,14 +86,12 @@ export class DatabaseConstruct extends Construct {
       },
       deletionProtection: false,
       storageEncrypted: true,
+      parameterGroup: auroraClusterParameterGroup, // クラスターパラメータグループを適用
     });
 
     // タグ付け
-    cdk.Tags.of(this.mssqlInstance).add(
-      "Environment",
-      props.config.environment,
-    );
-    cdk.Tags.of(this.mssqlInstance).add("Project", props.config.projectName);
+    
+    
     cdk.Tags.of(this.auroraCluster).add(
       "Environment",
       props.config.environment,
