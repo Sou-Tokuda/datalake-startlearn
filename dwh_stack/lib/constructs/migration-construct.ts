@@ -47,7 +47,7 @@ export class MigrationConstruct extends Construct {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret",
         ],
-        resources: [ props.auroraSecret.secretArn],
+        resources: [props.auroraSecret.secretArn],
       }),
     );
     this.dmsRole.addToPolicy(
@@ -112,7 +112,6 @@ export class MigrationConstruct extends Construct {
       },
     );
 
-    
     // Aurora MySQL用のエンドポイント作成
     this.auroraEndpoint = new dms.CfnEndpoint(this, "AuroraEndpoint", {
       endpointIdentifier: "stkdAuroraEndpoint",
@@ -150,7 +149,6 @@ export class MigrationConstruct extends Construct {
       },
     });
 
-    
     // // Aurora -> S3 レプリケーションタスクの作成
     // this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
     //   resourceIdentifier: "stkdAuroraToS3Task",

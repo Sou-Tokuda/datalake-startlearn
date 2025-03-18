@@ -173,7 +173,7 @@ export class AnalyticsConstruct extends Construct {
         logical: "ANY",
       },
       workflowName: this.workflow.name,
-      startOnCreation: true,
+      startOnCreation: false, // 初期デプロイではfalseにし、その後trueにする
     });
 
     // ワークフロートリガー：ETLジョブ完了後にS3 Tables作成ジョブを実行
@@ -200,6 +200,29 @@ export class AnalyticsConstruct extends Construct {
       startOnCreation: true,
     });
 
+    // ワークフローを開始するスケジュールトリガーを追加
+    const scheduleTrigger = new glue.CfnTrigger(
+      this,
+      "AnalyticsWorkflowScheduleTrigger",
+      {
+        name: `${props.config.projectName}-${props.config.environment}-workflow-schedule-trigger`,
+        type: "SCHEDULED",
+        description: "Start workflow on schedule",
+        schedule: "cron(0 0/6 * * ? *)",
+        actions: [
+          {
+            // ワークフローの最初のジョブまたはクローラーをアクションとして指定
+            crawlerName: this.glueCrawler.name,
+            // または jobName: this.extractTransformJob.name,
+          },
+        ],
+        workflowName: this.workflow.name, // このプロパティはトリガー自体に設定
+        startOnCreation: false,
+      },
+    );
+    // 明示的な依存関係の追加
+    scheduleTrigger.addDependency(this.workflow);
+    scheduleTrigger.addDependency(this.glueCrawler);
     // 依存関係の設定
     crawlerTrigger.addDependency(this.workflow);
     crawlerTrigger.addDependency(this.extractTransformJob);
@@ -210,49 +233,49 @@ export class AnalyticsConstruct extends Construct {
 
     // Athena
 
-    // this.glueRole.addManagedPolicy(
-    //   iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonAthenaFullAccess"),
-    // );
+    this.glueRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonAthenaFullAccess"),
+    );
 
-    // // Athena用の結果出力バケットを作成
-    // const athenaResultsBucket = new s3.Bucket(this, "AthenaResultsBucket", {
-    //   bucketName: `${props.config.projectName.toLowerCase()}-${props.config.environment}-athena-results-${this.node.addr.substring(0, 8)}`,
-    //   encryption: s3.BucketEncryption.S3_MANAGED,
-    //   blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-    //   removalPolicy:
-    //     props.config.environment === "prod"
-    //       ? cdk.RemovalPolicy.RETAIN
-    //       : cdk.RemovalPolicy.DESTROY,
-    //   autoDeleteObjects: props.config.environment !== "prod",
-    // });
+    // Athena用の結果出力バケットを作成
+    const athenaResultsBucket = new s3.Bucket(this, "AthenaResultsBucket", {
+      bucketName: `${props.config.projectName.toLowerCase()}-${props.config.environment}-athena-results-${this.node.addr.substring(0, 8)}`,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy:
+        props.config.environment === "prod"
+          ? cdk.RemovalPolicy.RETAIN
+          : cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: props.config.environment !== "prod",
+    });
 
-    // // Athena結果バケットへのアクセス権限を付与
-    // athenaResultsBucket.grantReadWrite(this.glueRole);
+    // Athena結果バケットへのアクセス権限を付与
+    athenaResultsBucket.grantReadWrite(this.glueRole);
 
-    // // Athenaワークグループの作成
-    // const athenaWorkgroup = new athena.CfnWorkGroup(this, "AthenaWorkgroup", {
-    //   name: `stkd-${props.config.projectName}-${props.config.environment}-workgroup`,
-    //   description: "Workgroup for querying data in S3",
-    //   state: "ENABLED",
-    //   workGroupConfiguration: {
-    //     resultConfiguration: {
-    //       outputLocation: `s3://${athenaResultsBucket.bucketName}/`,
-    //       encryptionConfiguration: {
-    //         encryptionOption: "SSE_S3",
-    //       },
-    //     },
-    //     publishCloudWatchMetricsEnabled: true,
-    //     enforceWorkGroupConfiguration: true,
-    //     engineVersion: {
-    //       selectedEngineVersion: "Athena engine version 3",
-    //     },
-    //   },
-    // });
+    // Athenaワークグループの作成
+    const athenaWorkgroup = new athena.CfnWorkGroup(this, "AthenaWorkgroup", {
+      name: `stkd-${props.config.projectName}-${props.config.environment}-workgroup`,
+      description: "Workgroup for querying data in S3",
+      state: "ENABLED",
+      workGroupConfiguration: {
+        resultConfiguration: {
+          outputLocation: `s3://${athenaResultsBucket.bucketName}/`,
+          encryptionConfiguration: {
+            encryptionOption: "SSE_S3",
+          },
+        },
+        publishCloudWatchMetricsEnabled: true,
+        enforceWorkGroupConfiguration: true,
+        engineVersion: {
+          selectedEngineVersion: "Athena engine version 3",
+        },
+      },
+    });
 
-    // // 出力値として追加
-    // new cdk.CfnOutput(this, "AthenaWorkgroupName", {
-    //   value: athenaWorkgroup.name!,
-    //   description: "Athena Workgroup Name",
-    // });
+    // 出力値として追加
+    new cdk.CfnOutput(this, "AthenaWorkgroupName", {
+      value: athenaWorkgroup.name!,
+      description: "Athena Workgroup Name",
+    });
   }
 }

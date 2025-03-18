@@ -57,7 +57,6 @@ export class DatabaseConstruct extends Construct {
         }),
         description: `${props.config.projectName}-${props.config.environment} Aurora MySQL instance parameter group`,
         // インスタンスレベルのパラメータが必要な場合はここに追加
-
       },
     );
 
@@ -90,8 +89,7 @@ export class DatabaseConstruct extends Construct {
     });
 
     // タグ付け
-    
-    
+
     cdk.Tags.of(this.auroraCluster).add(
       "Environment",
       props.config.environment,

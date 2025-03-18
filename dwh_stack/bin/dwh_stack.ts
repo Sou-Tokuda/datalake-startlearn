@@ -1,24 +1,22 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib';
-import { MyStack } from '../lib/dwh_stack-stack';
-import { IConstruct } from 'constructs';
+import * as cdk from "aws-cdk-lib";
+import { MyStack } from "../lib/dwh_stack-stack";
+import { IConstruct } from "constructs";
 
 const app = new cdk.App();
 
 // 環境変数から環境名を取得（デフォルトはdev）
-const envName = process.env.CDK_ENV || 'dev';
+const envName = process.env.CDK_ENV || "dev";
 
 new MyStack(app, `stkd-${envName}-Stack`, {
-  env: { 
-    account: process.env.CDK_DEFAULT_ACCOUNT, 
-    region: process.env.CDK_DEFAULT_REGION || 'ap-northeast-1'
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION || "ap-northeast-1",
   },
-  
 });
-cdk.Tags.of(app).add("Owner","Sou.Tokuda@sony.com")
+cdk.Tags.of(app).add("Owner", "Sou.Tokuda@sony.com");
 
-
-  /**
+/**
  * 指定された構造物に削除ポリシーを適用し、すべての子構造物にも再帰的に適用します。
  * @param construct - 削除ポリシーを適用する構造物
  * @param removalPolicy - 適用する削除ポリシー
@@ -31,7 +29,7 @@ function applyRemovalPolicyToAll(
     construct.applyRemovalPolicy(removalPolicy);
   }
 
-  construct.node.children.forEach((child:IConstruct) => {
+  construct.node.children.forEach((child: IConstruct) => {
     applyRemovalPolicyToAll(child, removalPolicy);
   });
 }
