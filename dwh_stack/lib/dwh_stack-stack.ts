@@ -40,7 +40,7 @@ export class MyStack extends cdk.Stack {
       securityGroup: network.securityGroup,
 
       auroraCluster: database.auroraCluster,
-      mssqlSecret: database.mssqlSecret,
+      oracleSecret: database.oracleSecret,
       auroraSecret: database.auroraSecret,
       rawDataBucket: storage.rawDataBucket,
     });

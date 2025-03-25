@@ -12,7 +12,7 @@ export interface MigrationProps {
   vpc: ec2.Vpc;
   securityGroup: ec2.SecurityGroup;
   auroraCluster: any; // RDS DatabaseCluster
-  mssqlSecret: secretsmanager.Secret;
+  oracleSecret: secretsmanager.Secret;
   auroraSecret: secretsmanager.Secret;
   rawDataBucket: s3.Bucket;
 }
@@ -20,10 +20,10 @@ export interface MigrationProps {
 export class MigrationConstruct extends Construct {
   public readonly dmsRole: iam.Role;
   public readonly dmsReplicationInstance: dms.CfnReplicationInstance;
-  public readonly mssqlEndpoint: dms.CfnEndpoint;
+  public readonly oracleEndpoint: dms.CfnEndpoint;
   public readonly auroraEndpoint: dms.CfnEndpoint;
   public readonly s3Endpoint: dms.CfnEndpoint;
-  public readonly mssqlToS3Task: dms.CfnReplicationTask;
+  public readonly oracleToS3Task: dms.CfnReplicationTask;
   public readonly auroraToS3Task: dms.CfnReplicationTask;
 
   constructor(scope: Construct, id: string, props: MigrationProps) {
@@ -47,7 +47,7 @@ export class MigrationConstruct extends Construct {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret",
         ],
-        resources: [props.auroraSecret.secretArn],
+        resources: [props.auroraSecret.secretArn, props.oracleSecret.secretArn],
       }),
     );
     this.dmsRole.addToPolicy(
@@ -117,18 +117,25 @@ export class MigrationConstruct extends Construct {
       endpointIdentifier: "stkdAuroraEndpoint",
       endpointType: "source",
       engineName: "aurora",
-      // serverName: props.auroraCluster.clusterEndpoint.hostname,
-      // port: 3306,
       mySqlSettings: {
         secretsManagerSecretId: props.auroraSecret.secretArn,
         secretsManagerAccessRoleArn: this.dmsRole.roleArn,
       },
       databaseName: props.config.rds.aurora.databaseName,
-      // username: "admin",
-      // password: "password", //TODO: non production mode
       sslMode: "none",
     });
 
+    this.oracleEndpoint = new dms.CfnEndpoint(this, "OracleEndpoint", {
+      endpointType: "source",
+      engineName: "oracle",
+      endpointIdentifier: "stkdOracleEndpoint",
+      oracleSettings: {
+        secretsManagerAccessRoleArn: this.dmsRole.roleArn,
+        secretsManagerSecretId: props.oracleSecret.secretArn,
+      },
+      databaseName: props.config.rds.oracle?.databaseName,
+      sslMode: "none",
+    });
     // S3ターゲットエンドポイントの作成
     this.s3Endpoint = new dms.CfnEndpoint(this, "S3Endpoint", {
       endpointIdentifier: "stkdS3Endpoint",

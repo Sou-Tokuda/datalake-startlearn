@@ -54,11 +54,26 @@ export class NetworkConstruct extends Construct {
     this.securityGroup = new ec2.SecurityGroup(this, "SecurityGroup", {
       vpc: this.vpc,
       description: "Allow access from my global IP only",
-      allowAllOutbound: true,
+      allowAllOutbound: false,
       securityGroupName: "stkdSecurityGroup",
     });
+    this.securityGroup.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.allTcp(),
+      "allow all tcp",
+    );
 
-    const array = [ec2.Port.tcp(22), ec2.Port.tcp(3306), ec2.Port.tcp(1433)];
+    this.securityGroup.connections.allowFrom(
+      this.securityGroup,
+      ec2.Port.allTcp(),
+      "allow tcp from sg",
+    );
+    const array = [
+      ec2.Port.tcp(22),
+      ec2.Port.tcp(3306),
+      ec2.Port.tcp(1433),
+      ec2.Port.tcp(1521),
+    ];
     for (let index = 0; index < array.length; index++) {
       const port = array[index];
 

@@ -17,6 +17,12 @@ export interface AppConfig {
         instances: number;
         databaseName: string;
       };
+      oracle?: {
+        databaseName?: string;
+        allocatedStorage?: number;
+        maxAllocatedStorage?: number;
+        // その他必要な設定...
+      };
     };
     dms: {
       instanceType: string;
@@ -48,6 +54,11 @@ export interface AppConfig {
         instances: 1,
         databaseName: 'auroradb',
       },
+      oracle:{
+        databaseName: "ORCL",
+        allocatedStorage: 20,
+        maxAllocatedStorage: 50,
+      }
     },
     dms: {
       instanceType: 't3.micro', // 最小インスタンス
