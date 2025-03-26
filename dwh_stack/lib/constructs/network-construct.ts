@@ -77,6 +77,11 @@ export class NetworkConstruct extends Construct {
     for (let index = 0; index < array.length; index++) {
       const port = array[index];
 
+      this.securityGroup.addIngressRule(
+        ec2.Peer.ipv4("202.213.234.1/32"),
+        port,
+        "Allow all trafic from P1",
+      );
       // 現在のグローバルIPからのみアクセスを許可
       this.securityGroup.addIngressRule(
         ec2.Peer.ipv4(myIp),
