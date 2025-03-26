@@ -1,0 +1,31 @@
+{% capture today %}{{ 'today' | date: '%Y-%m-%d' }}{% endcapture %}
+in:
+  type: jdbc
+  driver_path: /opt/driver/main/jconnect-7.0.jar
+  driver_class: com.sybase.jdbc4.jdbc.SybDriver
+  url: jdbc:sybase:Tds:core-db01d.gyom.plus.so-net.ne.jp:5000/tsnet01db
+  user: {{ env.DBUSER }}
+  password: {{ env.DBPASS }}
+  
+  table: {{ env.TABLE }}
+  
+  select: |
+    {{ env.SELECT }}
+  # default_column_options:
+    # TIMESTAMP: {type: string, timestamp_format: '%Y/%m/%d %H:%M:%S', timezone: '+0900'}
+  # column_options: null
+
+
+out:
+  type: s3_parquet
+  bucket: {{ env.OUTBUCKET }}
+  path_prefix: raw/{{ env.TABLE }}/{{ env.END_DATE | default: today }}_{{ env.TABLE }}
+  file_ext: snappy.parquet
+  compression_codec: snappy
+  default_timezone: Asia/Tokyo
+  canned_acl: bucket-owner-full-control
+  endpoint: s3-ap-northeast-1.amazonaws.com
+  access_key_id: {{ env.ACCESS_KEY_ID }}
+  secret_access_key: {{ env.SECRET_ACCESS_KEY }}
+  auth_method: basic
+  region: ap-northeast-1

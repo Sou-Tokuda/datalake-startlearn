@@ -1,0 +1,11 @@
+services:
+  embulk:
+    env_file: 
+      - ./.env.test
+    build: ./
+    container_name: embulk_lastet
+    volumes:
+      - ./conf:/root/conf:ro
+      - ./driver:/opt/driver/:ro
+    tty: true
+    network_mode: host
