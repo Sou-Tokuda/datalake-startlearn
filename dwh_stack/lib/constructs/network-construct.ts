@@ -12,7 +12,7 @@ export interface NetworkProps {
 export class NetworkConstruct extends Construct {
   public readonly vpc: ec2.Vpc;
   public readonly securityGroup: ec2.SecurityGroup;
-
+  public readonly secretsManagerEndpoint: ec2.InterfaceVpcEndpoint;
   constructor(scope: Construct, id: string, props: NetworkProps) {
     super(scope, id);
 
@@ -57,11 +57,6 @@ export class NetworkConstruct extends Construct {
       allowAllOutbound: false,
       securityGroupName: "stkdSecurityGroup",
     });
-    this.securityGroup.addEgressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.allTcp(),
-      "allow all tcp",
-    );
 
     this.securityGroup.connections.allowFrom(
       this.securityGroup,
@@ -88,21 +83,81 @@ export class NetworkConstruct extends Construct {
         port,
         "Allow all traffic from my global IP",
       );
-      this.vpc.privateSubnets.map((subnet) =>
+      this.vpc.privateSubnets.map((subnet) => {
         this.securityGroup.addIngressRule(
           ec2.Peer.ipv4(subnet.ipv4CidrBlock),
           port,
           "Allow all traffic from private subnets",
-        ),
-      );
-      this.vpc.publicSubnets.map((subnet) =>
+        );
+        this.securityGroup.addEgressRule(
+          ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+          ec2.Port.allTcp(),
+          "allow all tcp",
+        );
+      });
+      this.vpc.publicSubnets.map((subnet) => {
         this.securityGroup.addIngressRule(
           ec2.Peer.ipv4(subnet.ipv4CidrBlock),
           port,
           "Allow all traffic from public subnets",
-        ),
-      );
+        );
+        this.securityGroup.addEgressRule(
+          ec2.Peer.ipv4(subnet.ipv4CidrBlock),
+          ec2.Port.allTcp(),
+          "allow all tcp",
+        );
+      });
     }
+
+    // Secret Manager用のVPCエンドポイント専用のセキュリティグループを作成
+    const secretsManagerEndpointSG = new ec2.SecurityGroup(
+      this,
+      "SecretsManagerEndpointSG",
+      {
+        vpc: this.vpc,
+        description: "Security Group for Secrets Manager VPC Endpoint",
+        allowAllOutbound: false,
+        securityGroupName: "stkd-secretsmanager-endpoint-sg",
+      },
+    );
+
+    // アプリケーションのセキュリティグループからSecret Managerエンドポイントへのアクセスを許可
+    this.securityGroup.addEgressRule(
+      ec2.Peer.securityGroupId(secretsManagerEndpointSG.securityGroupId),
+      ec2.Port.tcp(443),
+      "Allow HTTPS to Secrets Manager Endpoint",
+    );
+
+    // アプリケーションのセキュリティグループからSecret Managerエンドポイントへのアウトバウンドを許可
+    this.securityGroup.addEgressRule(
+      secretsManagerEndpointSG,
+      ec2.Port.tcp(443),
+      "Allow HTTPS to Secrets Manager Endpoint",
+    );
+
+    // Secret Manager用のVPCエンドポイントを作成
+    this.secretsManagerEndpoint = new ec2.InterfaceVpcEndpoint(
+      this,
+      "SecretsManagerEndpoint",
+      {
+        vpc: this.vpc,
+        service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+        privateDnsEnabled: true,
+        subnets: {
+          subnetType: ec2.SubnetType.PRIVATE_WITH_NAT, // または必要なサブネットタイプ
+        },
+        securityGroups: [secretsManagerEndpointSG],
+      },
+    );
+
+    this.securityGroup.addEgressRule(
+      ec2.Peer.ipv4("0.0.0.0/0"), // すべてのIPv4アドレス
+      ec2.Port.tcp(443),
+      "Allow HTTPS outbound to S3",
+    );
+
+    // allow egress
+    // for ec2 repository
 
     // キーペア作成
     const cfnKeyPair = new ec2.CfnKeyPair(this, "CfnKeyPair", {
@@ -134,12 +189,5 @@ export class NetworkConstruct extends Construct {
     });
 
     // タグ付け
-    cdk.Tags.of(this.vpc).add("Environment", props.config.environment);
-    cdk.Tags.of(this.vpc).add("Project", props.config.projectName);
-    cdk.Tags.of(this.securityGroup).add(
-      "Environment",
-      props.config.environment,
-    );
-    cdk.Tags.of(this.securityGroup).add("Project", props.config.projectName);
   }
 }

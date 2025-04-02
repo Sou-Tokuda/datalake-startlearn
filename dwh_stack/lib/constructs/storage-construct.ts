@@ -73,6 +73,7 @@ export class StorageConstruct extends Construct {
       bucketName: `${props.config.projectName.toLowerCase()}-${props.config.environment}-scripts-${this.node.addr.substring(0, 8)}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      autoDeleteObjects: props.config.environment !== "prod",
       removalPolicy:
         props.config.environment === "prod"
           ? cdk.RemovalPolicy.RETAIN
@@ -91,6 +92,12 @@ export class StorageConstruct extends Construct {
       sources: [s3deploy.Source.asset("./scripts/glue")],
       destinationBucket: this.scriptsBucket,
       destinationKeyPrefix: "glue-scripts",
+    });
+    // Glueスクリプトをデプロイ
+    new s3deploy.BucketDeployment(this, "DeployGlueDrivers", {
+      sources: [s3deploy.Source.asset("./drivers")],
+      destinationBucket: this.scriptsBucket,
+      destinationKeyPrefix: "glue-drivers",
     });
 
     // タグ付け

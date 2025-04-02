@@ -75,12 +75,13 @@ export class DatabaseConstruct extends Construct {
     // Aurora MySQLクラスターの作成
     this.auroraCluster = new rds.DatabaseCluster(this, "AuroraCluster", {
       engine: rds.DatabaseClusterEngine.auroraMysql({
-        version: rds.AuroraMysqlEngineVersion.VER_3_04_0,
+        version: rds.AuroraMysqlEngineVersion.VER_3_08_0,
       }),
+
       instanceProps: {
         instanceType: ec2.InstanceType.of(
           ec2.InstanceClass.T3,
-          ec2.InstanceSize.LARGE,
+          ec2.InstanceSize.MEDIUM,
         ),
         vpc: props.vpc,
         vpcSubnets: {
@@ -89,6 +90,7 @@ export class DatabaseConstruct extends Construct {
         securityGroups: [props.securityGroup],
         parameterGroup: auroraInstanceParameterGroup, // インスタンスパラメータグループを適用
       },
+
       instances: props.config.rds.aurora.instances,
       credentials: rds.Credentials.fromSecret(this.auroraSecret),
       defaultDatabaseName: props.config.rds.aurora.databaseName,
@@ -121,7 +123,7 @@ export class DatabaseConstruct extends Construct {
       }),
       instanceType: ec2.InstanceType.of(
         ec2.InstanceClass.T3,
-        ec2.InstanceSize.LARGE,
+        ec2.InstanceSize.MEDIUM,
       ),
       vpc: props.vpc,
       vpcSubnets: {

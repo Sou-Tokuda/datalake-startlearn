@@ -15,6 +15,7 @@ new MyStack(app, `stkd-${envName}-Stack`, {
   },
 });
 cdk.Tags.of(app).add("Owner", "Sou.Tokuda@sony.com");
+cdk.Tags.of(app).add("nodelete", "true");
 
 /**
  * 指定された構造物に削除ポリシーを適用し、すべての子構造物にも再帰的に適用します。

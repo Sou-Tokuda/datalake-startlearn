@@ -48,7 +48,7 @@ export class MigrationConstruct extends Construct {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret",
         ],
-        resources: [props.auroraSecret.secretArn, props.oracleSecret.secretArn],
+        resources: [props.auroraSecret.secretArn],
       }),
     );
     this.dmsRole.addToPolicy(
@@ -126,17 +126,6 @@ export class MigrationConstruct extends Construct {
       sslMode: "none",
     });
 
-    this.oracleEndpoint = new dms.CfnEndpoint(this, "OracleEndpoint", {
-      endpointType: "source",
-      engineName: "oracle",
-      endpointIdentifier: "stkdOracleEndpoint",
-      oracleSettings: {
-        secretsManagerAccessRoleArn: this.dmsRole.roleArn,
-        secretsManagerSecretId: props.oracleSecret.secretArn,
-      },
-      databaseName: props.config.rds.oracle?.databaseName,
-      sslMode: "none",
-    });
     // S3ターゲットエンドポイントの作成
     this.s3Endpoint = new dms.CfnEndpoint(this, "S3Endpoint", {
       endpointIdentifier: "stkdS3Endpoint",
@@ -157,102 +146,12 @@ export class MigrationConstruct extends Construct {
       },
     });
 
-    // // Aurora -> S3 レプリケーションタスクの作成
-    // this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
-    //   resourceIdentifier: "stkdAuroraToS3Task",
-    //   migrationType: "full-load-and-cdc",
-    //   replicationInstanceArn: this.dmsReplicationInstance.ref,
-    //   sourceEndpointArn: this.auroraEndpoint.ref,
-    //   targetEndpointArn: this.s3Endpoint.ref,
-    //   tableMappings: JSON.stringify({
-    //     rules: [
-    //       {
-    //         "rule-type": "selection",
-    //         "rule-id": "1",
-    //         "rule-name": "1",
-    //         "object-locator": {
-    //           "schema-name": props.config.rds.aurora.databaseName,
-    //           "table-name": "%",
-    //         },
-    //         "rule-action": "include",
-    //       },
-    //     ],
-    //   }),
-    //   replicationTaskSettings: JSON.stringify({
-    //     TargetMetadata: {
-    //       TargetSchema: "",
-    //       SupportLobs: true,
-    //       FullLobMode: false,
-    //       LobChunkSize: 64,
-    //       LimitedSizeLobMode: true,
-    //       LobMaxSize: 32,
-    //     },
-    //     // FullLoadSettings: {
-    //     //   FullLoadEnabled: true,
-    //     //   ApplyChangesEnabled: true,
-    //     //   TargetTablePrepMode: "DO_NOTHING",
-    //     //   CreatePkAfterFullLoad: false,
-    //     //   StopTaskCachedChangesApplied: false,
-    //     //   StopTaskCachedChangesNotApplied: false,
-    //     //   MaxFullLoadSubTasks: 8,
-    //     //   TransactionConsistencyTimeout: 600,
-    //     //   CommitRate: 10000,
-    //     // },
-    //     FullLoadSettings: {
-    //       CreatePkAfterFullLoad: false,
-    //       StopTaskCachedChangesApplied: false,
-    //       StopTaskCachedChangesNotApplied: false,
-    //       MaxFullLoadSubTasks: 8,
-    //       TransactionConsistencyTimeout: 900,
-    //       CommitRate: 10000,
-    //     },
-    //     Logging: {
-    //       EnableLogging: true,
-    //       LogComponents: [
-    //         {
-    //           Id: "SOURCE_UNLOAD",
-    //           Severity: "LOGGER_SEVERITY_DEFAULT",
-    //         },
-    //         {
-    //           Id: "SOURCE_CAPTURE",
-    //           Severity: "LOGGER_SEVERITY_DEFAULT",
-    //         },
-    //         {
-    //           Id: "TARGET_LOAD",
-    //           Severity: "LOGGER_SEVERITY_DEFAULT",
-    //         },
-    //         {
-    //           Id: "TARGET_APPLY",
-    //           Severity: "LOGGER_SEVERITY_DEFAULT",
-    //         },
-    //         {
-    //           Id: "TASK_MANAGER",
-    //           Severity: "LOGGER_SEVERITY_DEFAULT",
-    //         },
-    //       ],
-    //     },
-    //     ChangeProcessingTuning: {
-    //       BatchApplyEnabled: true,
-    //       BatchApplyPreserveTransaction: true,
-    //       BatchApplyTimeoutMin: 1,
-    //       BatchApplyTimeoutMax: 30,
-    //       BatchApplyMemoryLimit: 500,
-    //       BatchSplitSize: 0,
-    //       MinTransactionSize: 1000,
-    //       CommitTimeout: 1,
-    //       MemoryLimitTotal: 1024,
-    //       MemoryKeepTime: 60,
-    //       StatementCacheSize: 50,
-    //     },
-    //   }),
-    // });
-
-    // Oracle -> S3 レプリケーションタスクの作成
-    this.OracleToS3Task = new dms.CfnReplicationTask(this, "OracleToS3Task", {
-      resourceIdentifier: "stkdOracfleToS3Task",
+    // Aurora -> S3 レプリケーションタスクの作成
+    this.auroraToS3Task = new dms.CfnReplicationTask(this, "AuroraToS3Task", {
+      resourceIdentifier: "stkdAuroraToS3Task",
       migrationType: "full-load-and-cdc",
       replicationInstanceArn: this.dmsReplicationInstance.ref,
-      sourceEndpointArn: this.oracleEndpoint.ref,
+      sourceEndpointArn: this.auroraEndpoint.ref,
       targetEndpointArn: this.s3Endpoint.ref,
       tableMappings: JSON.stringify({
         rules: [
@@ -261,7 +160,7 @@ export class MigrationConstruct extends Construct {
             "rule-id": "1",
             "rule-name": "1",
             "object-locator": {
-              "schema-name": props.config.rds.oracle!.databaseName,
+              "schema-name": props.config.rds.aurora.databaseName,
               "table-name": "%",
             },
             "rule-action": "include",
@@ -294,7 +193,6 @@ export class MigrationConstruct extends Construct {
           StopTaskCachedChangesNotApplied: false,
           MaxFullLoadSubTasks: 8,
           TransactionConsistencyTimeout: 900,
-          
           CommitRate: 10000,
         },
         Logging: {
@@ -322,7 +220,6 @@ export class MigrationConstruct extends Construct {
             },
           ],
         },
-
         ChangeProcessingTuning: {
           BatchApplyEnabled: true,
           BatchApplyPreserveTransaction: true,
@@ -335,30 +232,6 @@ export class MigrationConstruct extends Construct {
           MemoryLimitTotal: 1024,
           MemoryKeepTime: 60,
           StatementCacheSize: 50,
-        },
-        ErrorBehavior: {
-          //https://zenn.dev/na0kia/articles/d848af2f931b57
-          // DataErrorPolicy: "LOG_ERROR",
-          // DataTruncationErrorPolicy: "LOG_ERROR",
-          // DataErrorEscalationPolicy: "SUSPEND_TABLE",
-          // DataErrorEscalationCount: 0,
-          // TableErrorPolicy: "SUSPEND_TABLE",
-          // TableErrorEscalationPolicy: "STOP_TASK",
-          // TableErrorEscalationCount: 0,
-          // RecoverableErrorCount: -1,
-          // RecoverableErrorInterval: 5,
-          // RecoverableErrorThrottling: true,
-          // RecoverableErrorThrottlingMax: 1800,
-          // RecoverableErrorStopRetryAfterThrottlingMax: false,
-          // ApplyErrorDeletePolicy: "IGNORE_RECORD",
-          // ApplyErrorInsertPolicy: "LOG_ERROR",
-          // ApplyErrorUpdatePolicy: "LOG_ERROR",
-          // ApplyErrorEscalationPolicy: "LOG_ERROR",
-          // ApplyErrorEscalationCount: 0,
-          // ApplyErrorFailOnTruncationDdl: false,
-          // FullLoadIgnoreConflicts: true,
-          // FailOnTransactionConsistencyBreached: false,
-          FailOnNoTablesCaptured: false,
         },
       }),
     });
