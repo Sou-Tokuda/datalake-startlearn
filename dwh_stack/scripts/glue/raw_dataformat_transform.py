@@ -22,7 +22,7 @@ args = getResolvedOptions(sys.argv, [
     'SOURCE_DATABASE', 
     'RAW_BUCKET',
     'PROCESSED_BUCKET',
-    'TARGET_DATABSE'
+    'TARGET_DATABASE'
 ])
 
 warehouse=args["RAW_BUCKET"]
@@ -53,7 +53,7 @@ conf.set("spark.sql.catalog.s3tablesbucket.s3tables.region", region)
 
 import boto3
 gluecatalogname=args['SOURCE_DATABASE']
-target_databse_name=args['TARGET_DATABASE']
+target_database_name=args['TARGET_DATABASE']
 
 glue_client = boto3.client('glue')
 # データベース内のテーブル一覧を取得
@@ -68,7 +68,9 @@ job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 spark = glueContext.spark_session
 
-spark.sql( """ CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.raw_data""")    
+spark.sql( f"""
+CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{target_database_name}
+""")    
 
 # 現在の日付を取得（パーティション用）
 current_date = datetime.now()
@@ -104,18 +106,22 @@ for table_name in table_names:
             
             # TODO:テーブルがなかったら作成、ある場合はマージがしたい
             # Icebergテーブル作成
-            
-            table_exists = len(self.spark.sql(f"SHOW TABLES IN s3tablesbucket.{target_database_name} LIKE ic_{table_name.removeprefix("raw_")}").collect()) > 0
+            cropped_table_name=table_name.removeprefix("raw_")
+            table_exists = len(
+                spark.sql(
+                    f"""
+                    SHOW TABLES IN s3tablesbucket.{target_database_name} LIKE "ic_{cropped_table_name}"
+                    """).collect()) > 0
             if table_exists:
                 insert_sql = f"""
-                INSERT INTO s3tablesbucket.{target_database_name}.ic_{table_name.removeprefix("raw_")}
+                INSERT INTO s3tablesbucket.{target_database_name}.ic_{cropped_table_name}
                 SELECT * FROM temp_{table_name}
                 """
                 spark.sql(insert_sql)
                     
             else:
                 spark.sql(f"""
-                CREATE TABLE IF NOT EXISTS s3tablesbucket.{target_databse_name}.ic_{table_name.removeprefix("raw_")}
+                CREATE TABLE IF NOT EXISTS s3tablesbucket.{target_database_name}.ic_{cropped_table_name}
                 USING iceberg
                 TBLPROPERTIES (
                         'write.format.default' = 'parquet',
